@@ -1,0 +1,55 @@
+name: Update Sony Liv Playlist
+
+on:
+  schedule:
+    - cron: '*/30 * * * *' # Runs every 30 minutes
+  workflow_dispatch:       # Allows you to click "Run workflow" manually
+
+# Prevents overlapping runs if one takes too long
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  update-playlist:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        cache: 'pip' # Caches dependencies to speed up runs
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests beautifulsoup4
+
+    - name: Run Scraper Script
+      run: python scripts/sony_liv.py
+
+    - name: Commit and Push changes
+      run: |
+        git config --global user.name "GitHub Action"
+        git config --global user.email "action@github.com"
+        
+        # Ensure the playlist directory is tracked
+        git add playlist/sony_liv.m3u
+        
+        # Check if there are changes (avoids empty commit errors)
+        if git diff --staged --quiet; then
+          echo "No changes to commit."
+        else
+          git commit -m "Auto-update Sony Liv playlist [$(date)]"
+          
+          # Pull latest changes to prevent conflicts, then push
+          git pull --rebase origin main
+          git push
+        fi
